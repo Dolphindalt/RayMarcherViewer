@@ -1,9 +1,32 @@
 #version 400
 
 uniform vec3 resolution;
-uniform vec3 camera_position;
+uniform vec3 center;
+uniform vec3 eye;
+uniform vec3 up;
 
 out vec4 colorOut;
+
+const vec3 color_map[] = 
+{
+    {0.0,  0.0,  0.0},
+    {0.26, 0.18, 0.06},
+    {0.1,  0.03, 0.1},
+    {0.04, 0.0,  0.18},
+    {0.02, 0.02, 0.29},
+    {0.0,  0.03, 0.37},
+    {0.04, 0.13, 0.60},
+    {0.07, 0.32, 0.75},
+    {0.22, 0.49, 0.82},
+    {0.52, 0.71, 0.9},
+    {0.82, 0.92, 0.97},
+    {0.94, 0.91, 0.75},
+    {0.97, 0.79, 0.37},
+    {1.0,  0.60, 0.0},
+    {0.8,  0.5,  0.0},
+    {0.6,  0.30, 0.0},
+    {0.41, 0.2,  0.01}
+};
 
 float sphereDF(vec3 p, vec3 c, float r)
 {
@@ -23,7 +46,7 @@ float boxDF(vec3 p, vec3 b)
 }
 
 float mandelboxDF(vec3 p) {
-    float Scale = -1.77f, fixedRadius2 = 1.0f, minRadius2 = (0.5f*0.5f);
+    float Scale = -2.77f, fixedRadius2 = 1.0f, minRadius2 = (0.5f*0.5f);
     vec3 p0 = p;
     float dr = 1.0f;
     for(int n = 0; n < 13; n++) {
@@ -47,15 +70,37 @@ float mandelboxDF(vec3 p) {
     return length(p)/abs(dr);
 }
 
+float mandelbulbDF(vec3 p)
+{
+  const int max_iterations = 100;
+  const float bailout = 2.0;
+  const float power = 2.0;
+
+  vec3 z = p;
+  float dr = 1.0;
+  float r = 0.0;
+  for(int i = 0; i < max_iterations; i++)
+  {
+    r = length(z);
+    if(r > bailout) 
+      break;
+    float theta = acos(z.z/r);
+    float phi = atan(z.y, z.x);
+    dr = pow(r, power - 1.0) * power * dr + 1.0;
+
+    float zr = pow(r, power);
+    theta = theta * power;
+    phi *= power;
+
+    z = zr*vec3(sin(theta)*cos(phi), sin(phi)*sin(theta), cos(theta));
+    z += p;
+  }
+  return 0.5*log(r) * r / dr;
+}
+
 float map(vec3 p)
 {
-  float sphere_b = sphereDF(p, vec3(3.0, 0.5, 0.5), 0.8);
-  float v = sphere_b;
-  float torus = torusDF(p, vec3(-3.0, 0.0, 0.0), vec2(1.0, 0.7));
-  v = min(v, torus);
-  float mandelbox = mandelboxDF(p);
-  v = min(v, mandelbox);
-  return v;
+  return mandelboxDF(p);
 }
 
 vec3 normal(vec3 p)
@@ -75,7 +120,7 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
 {
   float total_distance = 0.0;
   const int MAX_STEPS = 100;
-  const float MIN_HIT_DISTANCE = 0.001;
+  const float MIN_HIT_DISTANCE = 0.0001;
   const float MAX_TRACE_DISTANCE = 1000.0;
 
   for(int i = 0; i < MAX_STEPS; i++)
@@ -89,7 +134,9 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
       vec3 light_position = vec3(2.0, -5.0, 3.0);
       vec3 direction_to_light = normalize(current_position - light_position);
       float diffuse = max(0.0, dot(normal, direction_to_light));
-      return vec3(1.0, 1.0, 1.0) * diffuse;
+      int row_i = (i * 100 / MAX_STEPS % 17);
+      vec3 col = (i == MAX_STEPS) ? vec3(0.0) : color_map[row_i];
+      return col * diffuse;
     }
 
     if(total_distance > MAX_TRACE_DISTANCE)
@@ -99,7 +146,15 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
 
     total_distance += distance_function_result;
   }
-  return vec3(sin(uv.x), uv.y * sin(uv.x), uv.y);
+  return vec3(0.0);
+}
+
+mat3 look_at(in vec3 eye, in vec3 centre, in vec3 up)
+{
+    vec3 cw = normalize(centre-eye);
+    vec3 cu = normalize(cross(cw,up));
+    vec3 cv = normalize(cross(cu,cw));
+    return mat3(cu, cv, cw);
 }
 
 void main()
@@ -108,13 +163,23 @@ void main()
   uv.x *= resolution.x / resolution.y;
 
   //vec3 camera_position = vec3(0.0, 0.0, -5.0);
-  vec3 ray_origin = camera_position;
-  vec3 ray_direction = vec3(uv, 1.0);
+
+  vec3 ray_origin = eye;
+  vec3 ta = center;
+
+  mat3 ca = look_at(ray_origin, ta, up);
+
+  vec3 ray_direction = ca * normalize(vec3(uv.xy, 2.0));
+
+  //vec3 ray_direction = vec3(uv, 1.0);
 
   vec3 color = march(ray_origin, ray_direction, uv);
 
-  color = max(color, 0.0);
-  color = min(color, 1.0);
+  //color *= 1.5;
+  //color = mix(0.5 * color, color, color);
+
+  //color = max(color, 0.0);
+  //color = min(color, 1.0);
 
   colorOut = vec4(color, 1.0);
 }

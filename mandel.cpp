@@ -12,8 +12,9 @@
 
 using namespace glm;
 
-vec3 resolution = vec3(1000, 1000, 0.0);
-int running = 1;
+glm::vec3 resolution = glm::vec3(1000, 1000, 0.0);
+int last_x, last_y;
+int running = 1, lock = 0;
 
 Camera camera;
 
@@ -91,11 +92,14 @@ int main(int argc, char *argv[])
         while(delta >= 1.0)
         {
             input(camera, delta);
+            SDL_GetMouseState(&last_x, &last_y);
             delta--;
         }
 
         glUniform3fv(glGetUniformLocation(shaders, "resolution"), 1, value_ptr(resolution));
-        glUniform3fv(glGetUniformLocation(shaders, "camera_position"), 1, value_ptr(camera.get_camera_position()));
+        glUniform3fv(glGetUniformLocation(shaders, "center"), 1, value_ptr(camera.get_center()));
+        glUniform3fv(glGetUniformLocation(shaders, "eye"), 1, value_ptr(camera.get_eye()));
+        glUniform3fv(glGetUniformLocation(shaders, "up"), 1, value_ptr(camera.get_up()));
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(1.0, 1.0, 1.0, 1.0);
@@ -119,16 +123,22 @@ void input(Camera &camera, double delta)
         switch(e.type)
         {
             case SDL_QUIT: running = 0; break;
+            case SDL_MOUSEWHEEL:
+                camera.scroll(e.wheel.y);
+                break;
+            case SDL_MOUSEMOTION:
+                if(!lock)
+                    camera.rotate(e.motion.xrel, e.motion.yrel);
+                break;
             case SDL_KEYDOWN:
                 switch(e.key.keysym.sym)
                 {
-                    case SDLK_w: camera.w(); break;
-                    case SDLK_a: camera.a(); break;
-                    case SDLK_s: camera.s(); break;
-                    case SDLK_d: camera.d(); break;
-                    case SDLK_q: camera.q(); break;
-                    case SDLK_e: camera.e(); break;
                     case SDLK_ESCAPE: running = 0; break;
+                    case SDLK_w: camera.move(0.0, -1.0); break;
+                    case SDLK_s: camera.move(0.0, 1.0); break;
+                    case SDLK_a: camera.move(1.0, 0.0); break;
+                    case SDLK_d: camera.move(-1.0, 0.0); break;
+                    case SDLK_q: lock = !lock; break;
                     default: break;
                 }
             default: break;

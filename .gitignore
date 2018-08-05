@@ -1,3 +1,4 @@
 mandel
 *.out
 *.o
+/.vscode/
