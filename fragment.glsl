@@ -1,7 +1,6 @@
 #version 400
 
 uniform vec3 resolution;
-uniform float aspect_ratio;
 uniform vec3 camera_position;
 
 out vec4 colorOut;
@@ -106,6 +105,7 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
 void main()
 {
   vec2 uv = gl_FragCoord.xy / resolution.xy * 2.0 - 1.0;
+  uv.x *= resolution.x / resolution.y;
 
   //vec3 camera_position = vec3(0.0, 0.0, -5.0);
   vec3 ray_origin = camera_position;

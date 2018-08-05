@@ -95,7 +95,6 @@ int main(int argc, char *argv[])
         }
 
         glUniform3fv(glGetUniformLocation(shaders, "resolution"), 1, value_ptr(resolution));
-        glUniform1f(glGetUniformLocation(shaders, "apsect_ratio"), (float) resolution.x / (float) resolution.y);
         glUniform3fv(glGetUniformLocation(shaders, "camera_position"), 1, value_ptr(camera.get_camera_position()));
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
