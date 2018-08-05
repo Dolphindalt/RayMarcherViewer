@@ -1,7 +1,3 @@
-# Mandelbrot Generator
+# Ray Marcher Viewer
 
-Move and zoom around a bit. I wanted to rewrite this in opengl and not use java.
-
-## Building and Running
-* make
-* ./mandel
+I hope to get a gui up for this soon.
