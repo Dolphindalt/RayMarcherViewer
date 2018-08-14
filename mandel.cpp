@@ -36,6 +36,20 @@ vec4 orbit_strength = vec4(-1.0, -1.8, -1.5, 1.3);
 float palette_offset = 0;
 float cycle_intensity = 1.0;
 
+float ambient_intensity = 1.0;
+float diffuse_intensity = 1.0;
+float specular_intenisty = 1.0;
+float shine = 30;
+int gamma_correction = 0;
+
+int mandelbulb_iterations = 100;
+float mandelbulb_power = 2.0f;
+float mandelbulb_bailout = 8.0f;
+
+float mandelbox_scale = -2.77f;
+float mandelbox_fixed_radius = 1.1f;
+float mandelbox_min_radius = 0.025f;
+
 Camera camera;
 
 char *file_to_string(const char *file_name);
@@ -145,6 +159,20 @@ int main(int argc, char *argv[])
         glUniform1f(glGetUniformLocation(shaders, "palette_offset"), palette_offset);
         glUniform4fv(glGetUniformLocation(shaders, "orbit_strength"), 1, value_ptr(orbit_strength));
 
+        glUniform1f(glGetUniformLocation(shaders, "shine"), shine);
+        glUniform1f(glGetUniformLocation(shaders, "ambient_intensity"), ambient_intensity);
+        glUniform1f(glGetUniformLocation(shaders, "diffuse_intensity"), diffuse_intensity);
+        glUniform1f(glGetUniformLocation(shaders, "specular_intensity"), specular_intenisty);
+
+        glUniform1i(glGetUniformLocation(shaders, "mandelbulb_iterations"), mandelbulb_iterations);
+        glUniform1f(glGetUniformLocation(shaders, "mandelbulb_bailout"), mandelbulb_bailout);
+        glUniform1f(glGetUniformLocation(shaders, "mandelbulb_power"), mandelbulb_power);
+
+        glUniform1f(glGetUniformLocation(shaders, "mandelbox_scale"), mandelbox_scale);
+        glUniform1f(glGetUniformLocation(shaders, "mandelbox_fixed_radius"), mandelbox_fixed_radius);
+        glUniform1f(glGetUniformLocation(shaders, "mandelbox_min_radius"), mandelbox_min_radius);
+
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(1.0, 1.0, 1.0, 1.0);
         
@@ -162,19 +190,6 @@ int main(int argc, char *argv[])
         ImGui::SliderFloat("Camera speed", camera.getCameraSpeed(), 0.001, 10.0);
         ImGui::ColorEdit3("Background color", (float*)&background_color);
         ImGui::Separator();
-
-        switch(selection)
-        {
-            case 0:
-                break;
-            case 1:
-                break;
-            case 2:
-                break;
-            default:
-                break;
-        }
-
         ImGui::Text("Orbit trap coloring");
         ImGui::ColorEdit3("Color 0", (float*)&color0);
         ImGui::ColorEdit3("Color 1", (float*)&color1);
@@ -192,8 +207,36 @@ int main(int argc, char *argv[])
         ImGui::SliderFloat("Orbit y strength", &orbit_strength[1], -3.0, 3.0);
         ImGui::SliderFloat("Orbit z strength", &orbit_strength[2], -3.0, 3.0);
         ImGui::SliderFloat("Orbit w strength", &orbit_strength[3], -3.0, 3.0);
-
+        ImGui::Separator();
+        ImGui::Text("Lighting");
+        ImGui::SliderFloat("Shine", &shine, 1.0, 100.0);
+        ImGui::SliderFloat("Ambient", &ambient_intensity, 0.0, 1.0);
+        ImGui::SliderFloat("Diffuse", &diffuse_intensity, 0.0, 1.0);
+        ImGui::SliderFloat("Specular", &specular_intenisty, 0.0, 1.0);
+        ImGui::Checkbox("Gamma correction", (bool *)&gamma_correction);
         ImGui::End();
+
+        switch(selection)
+        {
+            case 0:
+                ImGui::Begin("Mandelbox Settings");
+                ImGui::SliderFloat("Scale", &mandelbox_scale, -5.0, 5.0);
+                ImGui::SliderFloat("Fixed radius", &mandelbox_fixed_radius, 0.001, 3.0);
+                ImGui::SliderFloat("Min radius", &mandelbox_min_radius, 0.001, 1.0);
+                ImGui::End();
+                break;
+            case 1:
+                ImGui::Begin("Mandelbulb Settings");
+                ImGui::SliderInt("Iterations", &mandelbulb_iterations, 1, 1000);
+                ImGui::SliderFloat("Bailout", &mandelbulb_bailout, 1.0, 32.0);
+                ImGui::SliderFloat("Power", &mandelbulb_power, 1.0, 8.0);
+                ImGui::End();
+                break;
+            case 2:
+                break;
+            default:
+                break;
+        }
 
         ImGui::Render();
 

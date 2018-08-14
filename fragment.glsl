@@ -23,14 +23,24 @@ uniform float cycle_intensity;
 uniform float palette_offset;
 uniform vec4 orbit_strength;
 
+uniform float shine;
+uniform float ambient_intensity;
+uniform float diffuse_intensity;
+uniform float specular_intensity;
+uniform int gamma_correction;
+
+uniform int mandelbulb_iterations;
+uniform float mandelbulb_bailout;
+uniform float mandelbulb_power;
+
+uniform float mandelbox_scale;
+uniform float mandelbox_fixed_radius;
+uniform float mandelbox_min_radius;
+
 out vec4 colorOut;
 
 vec4 orbitTrap = vec4(10000.0);
-
-float sphereDF(vec3 p, vec3 c, float r)
-{
-  return length(p - c) - r;
-}
+vec3 light_position = vec3(2.0, -5.0, 3.0);
 
 float torusDF( vec3 p, vec3 c, vec2 t )
 {
@@ -39,57 +49,44 @@ float torusDF( vec3 p, vec3 c, vec2 t )
   return length(q)-t.y;
 }
 
-float boxDF(vec3 p, vec3 b)
-{
-  return length(max(abs(p)-b,0.0));
-}
-
 float mandelboxDF(vec3 p) {
-    float Scale = -2.77f, fixedRadius2 = 1.1f, minRadius2 = (0.5f*0.5f);
     vec3 p0 = p;
     float dr = 1.0f;
     for(int n = 0; n < 13; n++) {
-        // Reflect
         p = (clamp(p,-1.0f,1.0f) * 2.0f) - p;
-        // Sphere Inversion
         float r2 = dot(p,p);
-        if(r2<minRadius2) {
-            float t = (fixedRadius2/minRadius2);
+        if(r2<mandelbox_min_radius) {
+            float t = (mandelbox_fixed_radius/mandelbox_min_radius);
             p *= t;
             dr *= t;
-        } else if(r2<fixedRadius2) {
-            float t = (fixedRadius2/r2);
+        } else if(r2<mandelbox_fixed_radius) {
+            float t = (mandelbox_fixed_radius/r2);
             p *= t;
             dr *= t;
         }
-        // Scale & Translate
-        p = p * Scale + p0;
-        dr = dr * abs(Scale) + 1.0f;
+        p = p * mandelbox_scale + p0;
+        dr = dr * abs(mandelbox_scale) + 1.0f;
     }
     return length(p)/abs(dr);
 }
 
 float mandelbulbDF(vec3 p)
 {
-  const int max_iterations = 100;
-  const float bailout = 2.0;
-  const float power = 8.0;
-
   vec3 z = p;
   float dr = 1.0;
   float r = 0.0;
-  for(int i = 0; i < max_iterations; i++)
+  for(int i = 0; i < mandelbulb_iterations; i++)
   {
     r = length(z);
-    if(r > bailout) 
+    if(r > mandelbulb_bailout) 
       break;
     float theta = acos(z.z/r);
     float phi = atan(z.y, z.x);
-    dr = pow(r, power - 1.0) * power * dr + 1.0;
+    dr = pow(r, mandelbulb_power - 1.0) * mandelbulb_power * dr + 1.0;
 
-    float zr = pow(r, power);
-    theta = theta * power;
-    phi *= power;
+    float zr = pow(r, mandelbulb_power);
+    theta = theta * mandelbulb_power;
+    phi *= mandelbulb_power;
 
     z = zr*vec3(sin(theta)*cos(phi), sin(phi)*sin(theta), cos(theta));
     z += p;
@@ -159,24 +156,23 @@ vec3 colorFromOrbitTrap()
   return color;
 }
 
-vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
+vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv, out vec3 pos)
 {
   float total_distance = 0.0;
   const float MIN_HIT_DISTANCE = 0.0001;
   const float MAX_TRACE_DISTANCE = 2000.0;
+  vec3 current_position;
 
   for(int i = 0; i < max_steps; i++)
   {
-    vec3 current_position = ray_origin + total_distance * ray_direction;
+    current_position = ray_origin + total_distance * ray_direction;
     float distance_function_result = map(current_position);
 
     if(distance_function_result < MIN_HIT_DISTANCE)
     {
       vec3 normal = normal(current_position);
-      vec3 light_position = vec3(2.0, -5.0, 3.0);
       vec3 direction_to_light = normalize(current_position - light_position);
       float diffuse = max(0.0, dot(normal, direction_to_light));
-      int row_i = (i * 100 / max_steps % 17);
       vec3 col = colorFromOrbitTrap();
       return col * diffuse;
     }
@@ -188,12 +184,37 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
 
     total_distance += distance_function_result;
   }
+  pos = current_position;
   return background_color;
+}
+
+vec3 blinn_phong(vec3 diff_color, vec3 p, vec3 ray_direction)
+{
+  vec3 ambient_color = diff_color * 0.8;
+  const vec3 light_color = vec3(1.0);
+  const vec3 spec_color = vec3(1.0);
+  const float gamma = 2.2;
+
+  vec3 normal = normal(p);
+  vec3 eye_vector = normalize(eye - p);
+  vec3 light_vector = normalize(light_position - p);
+  vec3 H = normalize(light_vector + eye_vector);
+
+  float light_power = 0.45;
+  float lambertian = max(dot(light_vector, normal), 0.0);
+  float specular = pow(max(dot(H, normal), 0.0), shine);
+
+  vec3 blinn_phong_color = ambient_intensity * ambient_color +
+    diffuse_intensity * diff_color * lambertian * light_color * light_power +
+    specular_intensity * spec_color * specular * light_color * light_power;
+  
+  return mix(blinn_phong_color, pow(blinn_phong_color, vec3(1.0/gamma)), float(gamma_correction));
 }
 
 void main()
 {
   vec2 uv = gl_FragCoord.xy / resolution.xy * 2.0 - 1.0;
+  vec3 p;
   uv.x *= resolution.x / resolution.y;
 
   //vec3 camera_position = vec3(0.0, 0.0, -5.0);
@@ -205,7 +226,9 @@ void main()
 
   vec3 ray_direction = ca * normalize(vec3(uv.xy, 2.0));
 
-  vec3 color = march(ray_origin, ray_direction, uv);
+  vec3 color = march(ray_origin, ray_direction, uv, p);
+
+  color = mix(color, blinn_phong(color, p, ray_direction), 1.0);
 
   //color *= 1.5;
   //color = mix(0.5 * color, color, color);
