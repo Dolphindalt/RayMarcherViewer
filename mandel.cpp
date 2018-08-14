@@ -6,15 +6,35 @@
 #include <assert.h>
 #include <glm/gtc/type_ptr.hpp>
 #include "Camera.h"
+#include <imgui.h>
+#include <imgui_impl_sdl.h>
+#include <imgui_impl_opengl3.h>
+#include <glm/glm.hpp>
 
 #define MAJOR_VERSION 3
 #define MINOR_VERSION 1
 
 using namespace glm;
 
-glm::vec3 resolution = glm::vec3(1000, 1000, 0.0);
-int last_x, last_y;
+vec3 resolution = glm::vec3(1900, 1000, 0.0);
 int running = 1, lock = 0;
+int max_steps = 100;
+int selection = 0;
+vec4 background_color = vec4(0.0, 0.0, 0.0, 1.0);
+
+vec3 color0 = vec3(0.1, 0.1, 0.1);
+vec3 color1 = vec3(0.3, 0.3, 0.3);
+vec3 color2 = vec3(0.5, 0.5, 0.5);
+vec3 color3 = vec3(0.75, 0.75, 0.75);
+vec3 color_base = vec3(0.25, 0.0, 0.25);
+float base_color_strength = 0.5;
+float dist0to1 = 0.2;
+float dist1to2 = 0.5;
+float dist2to3 = 0.7;
+float dist3to0 = 0.1;
+vec4 orbit_strength = vec4(-1.0, -1.8, -1.5, 1.3);
+float palette_offset = 0;
+float cycle_intensity = 1.0;
 
 Camera camera;
 
@@ -81,6 +101,13 @@ int main(int argc, char *argv[])
 
     glBindVertexArray(vao);
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    ImGui_ImplSDL2_InitForOpenGL(window, glcon);
+    ImGui_ImplOpenGL3_Init("#version 400");
+    ImGui::StyleColorsClassic();
+
     Uint64 now;
     Uint64 last_time = SDL_GetPerformanceCounter();
     double delta = 0;
@@ -92,7 +119,6 @@ int main(int argc, char *argv[])
         while(delta >= 1.0)
         {
             input(camera, delta);
-            SDL_GetMouseState(&last_x, &last_y);
             delta--;
         }
 
@@ -101,15 +127,87 @@ int main(int argc, char *argv[])
         glUniform3fv(glGetUniformLocation(shaders, "eye"), 1, value_ptr(camera.get_eye()));
         glUniform3fv(glGetUniformLocation(shaders, "up"), 1, value_ptr(camera.get_up()));
 
+        glUniform1i(glGetUniformLocation(shaders, "selection"), selection);
+        glUniform1i(glGetUniformLocation(shaders, "max_steps"), max_steps);
+        glUniform3fv(glGetUniformLocation(shaders, "background_color"), 1, value_ptr(background_color));
+
+        glUniform3fv(glGetUniformLocation(shaders, "color0"), 1, value_ptr(color0));
+        glUniform3fv(glGetUniformLocation(shaders, "color1"), 1, value_ptr(color1));
+        glUniform3fv(glGetUniformLocation(shaders, "color2"), 1, value_ptr(color2));
+        glUniform3fv(glGetUniformLocation(shaders, "color3"), 1, value_ptr(color3));
+        glUniform3fv(glGetUniformLocation(shaders, "color_base"), 1, value_ptr(color_base));
+        glUniform1f(glGetUniformLocation(shaders, "base_color_strength"), base_color_strength);
+        glUniform1f(glGetUniformLocation(shaders, "dist0to1"), dist0to1);
+        glUniform1f(glGetUniformLocation(shaders, "dist1to2"), dist1to2);
+        glUniform1f(glGetUniformLocation(shaders, "dist2to3"), dist2to3);
+        glUniform1f(glGetUniformLocation(shaders, "dist3to0"), dist3to0);
+        glUniform1f(glGetUniformLocation(shaders, "cycle_intensity"), cycle_intensity);
+        glUniform1f(glGetUniformLocation(shaders, "palette_offset"), palette_offset);
+        glUniform4fv(glGetUniformLocation(shaders, "orbit_strength"), 1, value_ptr(orbit_strength));
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(1.0, 1.0, 1.0, 1.0);
         
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplSDL2_NewFrame(window);
+        ImGui::NewFrame();
+
+        ImGui::Begin("Raymarch Viewer");
+        ImGui::Text("Basic settings");
+        ImGui::SliderInt("Shape selection", &selection, 0, 2);
+        ImGui::SliderInt("Max steps", &max_steps, 10, 500);
+        ImGui::SliderFloat("Zoom modifier", camera.getScrollFactor(), 0.001, 0.1);
+        ImGui::SliderFloat("Camera speed", camera.getCameraSpeed(), 0.001, 10.0);
+        ImGui::ColorEdit3("Background color", (float*)&background_color);
+        ImGui::Separator();
+
+        switch(selection)
+        {
+            case 0:
+                break;
+            case 1:
+                break;
+            case 2:
+                break;
+            default:
+                break;
+        }
+
+        ImGui::Text("Orbit trap coloring");
+        ImGui::ColorEdit3("Color 0", (float*)&color0);
+        ImGui::ColorEdit3("Color 1", (float*)&color1);
+        ImGui::ColorEdit3("Color 2", (float*)&color2);
+        ImGui::ColorEdit3("Color 3", (float*)&color3);
+        ImGui::ColorEdit3("Base color", (float*)&color_base);
+        ImGui::SliderFloat("Base color strength", &base_color_strength, 0, 3.0);
+        ImGui::SliderFloat("Distance 0 -> 1", &dist0to1, 0, 3.0);
+        ImGui::SliderFloat("Distance 1 -> 2", &dist1to2, 0, 3.0);
+        ImGui::SliderFloat("Distance 2 -> 3", &dist2to3, 0, 3.0);
+        ImGui::SliderFloat("Distance 3 -> 0", &dist3to0, 0, 3.0);
+        ImGui::SliderFloat("Cycle intensity", &cycle_intensity, 0.01, 6.0);
+        ImGui::SliderFloat("Palette offset", &palette_offset, 0.0, 100.0);
+        ImGui::SliderFloat("Orbit x strength", &orbit_strength[0], -3.0, 3.0);
+        ImGui::SliderFloat("Orbit y strength", &orbit_strength[1], -3.0, 3.0);
+        ImGui::SliderFloat("Orbit z strength", &orbit_strength[2], -3.0, 3.0);
+        ImGui::SliderFloat("Orbit w strength", &orbit_strength[3], -3.0, 3.0);
+
+        ImGui::End();
+
+        ImGui::Render();
+
+        SDL_GL_MakeCurrent(window, glcon);
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
     }
 
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+    ImGui::DestroyContext();
+    SDL_GL_DeleteContext(glcon);
     SDL_DestroyWindow(window);
+    SDL_Quit();
     glDeleteProgram(shaders);
     glDeleteVertexArrays(1, &vao);
     return 0;
@@ -120,6 +218,7 @@ void input(Camera &camera, double delta)
     SDL_Event e;
     while(SDL_PollEvent(&e))
     {
+        ImGui_ImplSDL2_ProcessEvent(&e);
         switch(e.type)
         {
             case SDL_QUIT: running = 0; break;

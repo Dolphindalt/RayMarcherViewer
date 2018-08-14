@@ -9,9 +9,8 @@ using namespace glm;
 extern glm::vec3 resolution;
 extern int last_x, last_y;
 
-const float camera_speed = 0.05f;
-const float zoom_factor = 1.1892f;
-const float scroll_factor = 0.1;
+float camera_speed = 1.0f;
+float scroll_factor = 0.1f;
 const double tau = 6.283185307179586;
 double zoom = 1.0f;
 
@@ -37,11 +36,10 @@ vec3 Camera::get_up()
 
 void Camera::scroll(float offset)
 {
-    offset = (offset > 0) ? 1.0 + scroll_factor : -1.0 - scroll_factor;
-    float z = pow(zoom_factor, offset);
-    vec2 zoom = vec2(z, z);
-    _eye = _center + (_eye - _center) * z;
-    zoom *= z;
+    offset = (offset > 0) ? 1.0 + scroll_factor : 1.0 - scroll_factor;
+    vec2 zoom = vec2(offset, offset);
+    _eye = _center + (_eye - _center) * offset;
+    zoom *= offset;
 }
 
 void Camera::rotate(int xrel, int yrel)
@@ -64,31 +62,21 @@ void Camera::move(float xrel, float yrel)
     yrel *= zoom;
     
     float distance_3d = length(_eye - _center);
-    vec3 voff = normalize(_up) * (yrel / resolution.y) * distance_3d;
+    vec3 voff = normalize(_up) * (yrel / resolution.y) * distance_3d * camera_speed;
     _center -= voff;
     _eye -= voff;
     vec3 haxis = cross(_eye - _center, _up);
-    vec3 hoff = normalize(haxis) * (xrel / resolution.x) * distance_3d;
+    vec3 hoff = normalize(haxis) * (xrel / resolution.x) * distance_3d  * camera_speed;
     _center += hoff;
     _eye += hoff;
 }
 
-void Camera::w()
+float *Camera::getScrollFactor()
 {
-    
+    return &scroll_factor;
 }
 
-void Camera::a()
+float *Camera::getCameraSpeed()
 {
-    
-}
-
-void Camera::s()
-{
-    
-}
-
-void Camera::d()
-{
-    
+    return &camera_speed;
 }

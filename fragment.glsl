@@ -5,28 +5,27 @@ uniform vec3 center;
 uniform vec3 eye;
 uniform vec3 up;
 
+uniform int selection;
+uniform int max_steps;
+uniform vec3 background_color;
+
+uniform vec3 color0;
+uniform vec3 color1;
+uniform vec3 color2;
+uniform vec3 color3;
+uniform vec3 color_base;
+uniform float base_color_strength;
+uniform float dist0to1;
+uniform float dist1to2;
+uniform float dist2to3;
+uniform float dist3to0;
+uniform float cycle_intensity;
+uniform float palette_offset;
+uniform vec4 orbit_strength;
+
 out vec4 colorOut;
 
-const vec3 color_map[] = 
-{
-    {0.0,  0.0,  0.0},
-    {0.26, 0.18, 0.06},
-    {0.1,  0.03, 0.1},
-    {0.04, 0.0,  0.18},
-    {0.02, 0.02, 0.29},
-    {0.0,  0.03, 0.37},
-    {0.04, 0.13, 0.60},
-    {0.07, 0.32, 0.75},
-    {0.22, 0.49, 0.82},
-    {0.52, 0.71, 0.9},
-    {0.82, 0.92, 0.97},
-    {0.94, 0.91, 0.75},
-    {0.97, 0.79, 0.37},
-    {1.0,  0.60, 0.0},
-    {0.8,  0.5,  0.0},
-    {0.6,  0.30, 0.0},
-    {0.41, 0.2,  0.01}
-};
+vec4 orbitTrap = vec4(10000.0);
 
 float sphereDF(vec3 p, vec3 c, float r)
 {
@@ -46,7 +45,7 @@ float boxDF(vec3 p, vec3 b)
 }
 
 float mandelboxDF(vec3 p) {
-    float Scale = -2.77f, fixedRadius2 = 1.0f, minRadius2 = (0.5f*0.5f);
+    float Scale = -2.77f, fixedRadius2 = 1.1f, minRadius2 = (0.5f*0.5f);
     vec3 p0 = p;
     float dr = 1.0f;
     for(int n = 0; n < 13; n++) {
@@ -64,8 +63,8 @@ float mandelboxDF(vec3 p) {
             dr *= t;
         }
         // Scale & Translate
-                p = p * Scale + p0;
-                dr = dr * abs(Scale) + 1.0f;
+        p = p * Scale + p0;
+        dr = dr * abs(Scale) + 1.0f;
     }
     return length(p)/abs(dr);
 }
@@ -74,7 +73,7 @@ float mandelbulbDF(vec3 p)
 {
   const int max_iterations = 100;
   const float bailout = 2.0;
-  const float power = 2.0;
+  const float power = 8.0;
 
   vec3 z = p;
   float dr = 1.0;
@@ -100,7 +99,12 @@ float mandelbulbDF(vec3 p)
 
 float map(vec3 p)
 {
-  return mandelboxDF(p);
+  if(selection == 0)
+    return mandelboxDF(p);
+  else if(selection == 1)
+    return mandelbulbDF(p);
+  else
+    return torusDF(p, vec3(0.0), vec2(5.0, 3.0));
 }
 
 vec3 normal(vec3 p)
@@ -116,14 +120,52 @@ vec3 normal(vec3 p)
   return normalize(normal);
 }
 
+mat3 look_at(in vec3 eye, in vec3 centre, in vec3 up)
+{
+    vec3 cw = normalize(centre-eye);
+    vec3 cu = normalize(cross(cw,up));
+    vec3 cv = normalize(cross(cu,cw));
+    return mat3(cu, cv, cw);
+}
+
+// https://github.com/jon-grangien/OpenGL-mandelbulb-explorer/blob/master/shaders/mandel_raymarch.frag
+vec3 colorFromOrbitTrap()
+{
+  float paletteCycleDist = dist0to1 + dist1to2 + dist2to3 + dist3to0;
+  float dist01 = dist0to1 / paletteCycleDist;
+  float dist12 = dist1to2 / paletteCycleDist;
+  float dist23 = dist2to3 / paletteCycleDist;
+  float dist30 = dist3to0 / paletteCycleDist;
+  float cycle_intensity_a = cycle_intensity * 0.1;
+  float poffset = palette_offset / 100.0;
+  vec3 color;
+
+  float orbitTot = dot(orbit_strength, orbitTrap);
+  orbitTot = mod(abs(orbitTot) * cycle_intensity_a, 1.0);
+  orbitTot = mod(orbitTot + poffset, 1.0);
+
+  if(orbitTot <= dist01)
+    color = mix(color0, color1, smoothstep(0.1, 1.0, abs(orbitTot) / (dist01)));
+  else if(orbitTot <= dist01 + dist12)
+    color = mix(color1, color2, smoothstep(0.1, 1.0, abs(orbitTot-dist01) / abs(dist12)));
+  else if(orbitTot <= dist01 + dist12 + dist23)
+    color = mix(color2, color3, smoothstep(0.1, 1.0, abs(orbitTot-dist01-dist12) / abs(dist23)));
+  else
+    color = mix(color3, color0, smoothstep(0.1, 1.0, abs(orbitTot-dist01-dist12-dist23) / abs(dist30)));
+
+  color = mix(color, color_base, smoothstep(0.0, 1.0, base_color_strength));
+  color = max(color, 0.0);
+  color = min(color, 1.0);
+  return color;
+}
+
 vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
 {
   float total_distance = 0.0;
-  const int MAX_STEPS = 100;
   const float MIN_HIT_DISTANCE = 0.0001;
-  const float MAX_TRACE_DISTANCE = 1000.0;
+  const float MAX_TRACE_DISTANCE = 2000.0;
 
-  for(int i = 0; i < MAX_STEPS; i++)
+  for(int i = 0; i < max_steps; i++)
   {
     vec3 current_position = ray_origin + total_distance * ray_direction;
     float distance_function_result = map(current_position);
@@ -134,8 +176,8 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
       vec3 light_position = vec3(2.0, -5.0, 3.0);
       vec3 direction_to_light = normalize(current_position - light_position);
       float diffuse = max(0.0, dot(normal, direction_to_light));
-      int row_i = (i * 100 / MAX_STEPS % 17);
-      vec3 col = (i == MAX_STEPS) ? vec3(0.0) : color_map[row_i];
+      int row_i = (i * 100 / max_steps % 17);
+      vec3 col = colorFromOrbitTrap();
       return col * diffuse;
     }
 
@@ -146,15 +188,7 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv)
 
     total_distance += distance_function_result;
   }
-  return vec3(0.0);
-}
-
-mat3 look_at(in vec3 eye, in vec3 centre, in vec3 up)
-{
-    vec3 cw = normalize(centre-eye);
-    vec3 cu = normalize(cross(cw,up));
-    vec3 cv = normalize(cross(cu,cw));
-    return mat3(cu, cv, cw);
+  return background_color;
 }
 
 void main()
@@ -171,15 +205,13 @@ void main()
 
   vec3 ray_direction = ca * normalize(vec3(uv.xy, 2.0));
 
-  //vec3 ray_direction = vec3(uv, 1.0);
-
   vec3 color = march(ray_origin, ray_direction, uv);
 
   //color *= 1.5;
   //color = mix(0.5 * color, color, color);
 
-  //color = max(color, 0.0);
-  //color = min(color, 1.0);
+  color = max(color, 0.0);
+  color = min(color, 1.0);
 
   colorOut = vec4(color, 1.0);
 }
