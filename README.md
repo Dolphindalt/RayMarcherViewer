@@ -1,3 +1,4 @@
 # Ray Marcher Viewer
 
-I hope to get a gui up for this soon.
+View the mandelbox and mandelbulb in many different ways.
+
