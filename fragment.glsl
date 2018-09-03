@@ -37,10 +37,12 @@ uniform float mandelbox_scale;
 uniform float mandelbox_fixed_radius;
 uniform float mandelbox_min_radius;
 
+uniform int light_method;
+uniform vec3 light_position;
+
 out vec4 colorOut;
 
 vec4 orbitTrap = vec4(10000.0);
-vec3 light_position = vec3(2.0, -5.0, 3.0);
 
 float torusDF( vec3 p, vec3 c, vec2 t )
 {
@@ -156,11 +158,31 @@ vec3 colorFromOrbitTrap()
   return color;
 }
 
+float soft_shadow(in vec3 ray_origin, in vec3 ray_direction, float mint, float maxt)
+{
+  float t = mint;
+  float res = 1.0;
+  float ph = 1e20;
+  while(t < maxt)
+  {
+    float h = map(ray_origin + ray_direction*t);
+    if(h < 0.001)
+      return 0.0;
+    float h2 = h*h;
+    float y = h2/(2.0*ph);
+    float d = sqrt(h2-y*y);
+    res = min(res, 1.0*d/max(0.0, t-y));
+    ph = h;
+    t += h;
+  }
+  return res;
+}
+
 vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv, out vec3 pos)
 {
   float total_distance = 0.0;
-  const float MIN_HIT_DISTANCE = 0.0001;
-  const float MAX_TRACE_DISTANCE = 2000.0;
+  const float MIN_HIT_DISTANCE = 0.001;
+  const float MAX_TRACE_DISTANCE = 1000.0;
   vec3 current_position;
 
   for(int i = 0; i < max_steps; i++)
@@ -171,10 +193,18 @@ vec3 march(vec3 ray_origin, vec3 ray_direction, vec2 uv, out vec3 pos)
     if(distance_function_result < MIN_HIT_DISTANCE)
     {
       vec3 normal = normal(current_position);
-      vec3 direction_to_light = normalize(current_position - light_position);
-      float diffuse = max(0.0, dot(normal, direction_to_light));
+      vec3 direction_to_light = normalize(light_position);
       vec3 col = colorFromOrbitTrap();
-      return col * diffuse;
+      if(light_method)
+      {
+        col *= clamp(dot(normal, direction_to_light), 0.0, 1.0) * soft_shadow(current_position, direction_to_light, 0.01, 3.0);
+        return col;
+      }
+      else 
+      {
+        float diffuse = max(0.0, dot(normal, direction_to_light));
+        return col * diffuse;
+      }
     }
 
     if(total_distance > MAX_TRACE_DISTANCE)

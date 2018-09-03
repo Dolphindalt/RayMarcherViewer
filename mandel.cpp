@@ -50,6 +50,9 @@ float mandelbox_scale = -2.77f;
 float mandelbox_fixed_radius = 1.1f;
 float mandelbox_min_radius = 0.025f;
 
+int light_method = 1;
+vec3 light_position = vec3(2.0, -5.0, 3.0);
+
 Camera camera;
 
 char *file_to_string(const char *file_name);
@@ -172,6 +175,8 @@ int main(int argc, char *argv[])
         glUniform1f(glGetUniformLocation(shaders, "mandelbox_fixed_radius"), mandelbox_fixed_radius);
         glUniform1f(glGetUniformLocation(shaders, "mandelbox_min_radius"), mandelbox_min_radius);
 
+        glUniform1i(glGetUniformLocation(shaders, "light_method"), light_method);
+        glUniform3fv(glGetUniformLocation(shaders, "light_position"), 1, value_ptr(light_position));
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glClearColor(1.0, 1.0, 1.0, 1.0);
@@ -209,6 +214,10 @@ int main(int argc, char *argv[])
         ImGui::SliderFloat("Orbit w strength", &orbit_strength[3], -3.0, 3.0);
         ImGui::Separator();
         ImGui::Text("Lighting");
+        ImGui::SliderInt("Lighting method", &light_method, 0, 1);
+        ImGui::SliderFloat("Light position x", &light_position.x, -10.0, 10.0);
+        ImGui::SliderFloat("Light position y", &light_position.y, -10.0, 10.0);
+        ImGui::SliderFloat("Light position z", &light_position.z, -10.0, 10.0);
         ImGui::SliderFloat("Shine", &shine, 1.0, 100.0);
         ImGui::SliderFloat("Ambient", &ambient_intensity, 0.0, 1.0);
         ImGui::SliderFloat("Diffuse", &diffuse_intensity, 0.0, 1.0);
