@@ -263,8 +263,8 @@ void main()
   //color *= 1.5;
   //color = mix(0.5 * color, color, color);
 
-  color = max(color, 0.0);
-  color = min(color, 1.0);
+  //color = max(color, 0.0);
+  //color = min(color, 1.0);
 
   colorOut = vec4(color, 1.0);
 }
